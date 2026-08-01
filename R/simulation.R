@@ -230,6 +230,19 @@ aggregate_simulation_results <- function(results) {
     } else NA_real_
     ess_fraction <- safe_mean(group$density_ratio_ess_fraction_mean)
 
+    use_paper <- primary_interval_is_paper()
+    primary_coverage <- if (use_paper) literal_coverage else cross_coverage
+    primary_interval <- if (use_paper) literal_interval else cross_interval
+    primary_trials <- if (use_paper) literal_trials else cross_trials
+    primary_width <- if (use_paper) mean_width_literal else mean_width_cross
+    primary_median_width <- safe_median(
+      if (use_paper) group$ci_width else group$ci_width_cross
+    )
+    primary_low <- safe_mean(if (use_paper) group$ci_low else group$ci_low_cross)
+    primary_high <- safe_mean(
+      if (use_paper) group$ci_high else group$ci_high_cross
+    )
+
     data.frame(
       language = group$language[[1L]],
       profile = group$profile[[1L]],
@@ -247,25 +260,30 @@ aggregate_simulation_results <- function(results) {
       relative_rmse = relative_rmse,
       standard_deviation = safe_sd(estimates),
 
-      # Khoảng t-Cross không hiệu chỉnh là quy ước trình bày chính.
-      coverage = cross_coverage,
-      coverage_ci_low = cross_interval[[1L]],
-      coverage_ci_high = cross_interval[[2L]],
-      coverage_mcse = if (cross_trials) {
-        sqrt(cross_coverage * (1 - cross_coverage) / cross_trials)
+      interval_convention = PRIMARY_INTERVAL,
+      coverage = primary_coverage,
+      coverage_ci_low = primary_interval[[1L]],
+      coverage_ci_high = primary_interval[[2L]],
+      coverage_mcse = if (primary_trials) {
+        sqrt(primary_coverage * (1 - primary_coverage) / primary_trials)
       } else NA_real_,
-      coverage_trials = cross_trials,
-      mean_ci_width = mean_width_cross,
-      median_ci_width = safe_median(group$ci_width_cross),
+      coverage_trials = primary_trials,
+      mean_ci_width = primary_width,
+      median_ci_width = primary_median_width,
+      mean_ci_low = primary_low,
+      mean_ci_high = primary_high,
 
-      # Các cột tương thích được giữ lại để hỗ trợ mã hậu xử lý.
+      mean_ci_low_cross = safe_mean(group$ci_low_cross),
+      mean_ci_high_cross = safe_mean(group$ci_high_cross),
+      mean_ci_low_paper_literal = safe_mean(group$ci_low),
+      mean_ci_high_paper_literal = safe_mean(group$ci_high),
+
       coverage_cross = cross_coverage,
       coverage_cross_ci_low = cross_interval[[1L]],
       coverage_cross_ci_high = cross_interval[[2L]],
       mean_ci_width_cross = mean_width_cross,
       median_ci_width_cross = safe_median(group$ci_width_cross),
 
-      # Khoảng theo cách diễn giải trực tiếp c = Var(Y)^2 là phân tích độ nhạy.
       coverage_paper_literal = literal_coverage,
       coverage_paper_literal_ci_low = literal_interval[[1L]],
       coverage_paper_literal_ci_high = literal_interval[[2L]],
@@ -280,9 +298,9 @@ aggregate_simulation_results <- function(results) {
       diagnostic = simulation_diagnostic_flag(
         safe_mean(group$finite_fraction),
         relative_absolute_bias,
-        cross_coverage,
-        cross_trials,
-        mean_width_cross,
+        primary_coverage,
+        primary_trials,
+        primary_width,
         target,
         ess_fraction
       ),

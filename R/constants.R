@@ -7,6 +7,22 @@ DVI_N_THREADS <- as.integer(Sys.getenv("DVI_N_THREADS", "4"))
 if (!is.finite(DVI_N_THREADS) || DVI_N_THREADS < 1L) DVI_N_THREADS <- 4L
 DVI_PROFILE <- tolower(Sys.getenv("DVI_PROFILE", "reduced"))
 
+# "paper": se^2 = s^2/B + c^2/n với c = Var(Y)^2 (mục 3.6). "cross": se^2 = s^2/B.
+PRIMARY_INTERVAL <- tolower(Sys.getenv("DVI_PRIMARY_INTERVAL", "paper"))
+if (!PRIMARY_INTERVAL %in% c("paper", "cross")) {
+  stop("DVI_PRIMARY_INTERVAL must be paper or cross.")
+}
+
+primary_interval_is_paper <- function() identical(PRIMARY_INTERVAL, "paper")
+
+primary_interval_label <- function() {
+  if (primary_interval_is_paper()) {
+    "t-Cross theo bài báo"
+  } else {
+    "t-Cross không hiệu chỉnh"
+  }
+}
+
 BASE_SEED <- 2026L
 ESTIMATORS <- c("psi_L", "psi_0", "psi_1", "psi_2", "psi_3")
 BASELINE_ESTIMATORS <- c("psi_L", "cpi_residual", "pfi")

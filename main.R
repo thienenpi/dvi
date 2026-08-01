@@ -14,6 +14,7 @@ parse_arguments <- function(argv) {
     profile = Sys.getenv("DVI_PROFILE", "reduced"),
     threads = Sys.getenv("DVI_N_THREADS", "4"),
     dpi = Sys.getenv("DVI_REPORT_DPI", "300"),
+    interval = Sys.getenv("DVI_PRIMARY_INTERVAL", "paper"),
     project_root = Sys.getenv("DVI_PROJECT_ROOT", ""),
     energy_data = "",
     concrete_data = "",
@@ -64,6 +65,8 @@ usage_text <- function() {
     "  --profile        smoke | reduced | paper (mặc định: reduced)",
     "  --threads        số luồng BLAS/OpenMP (mặc định: 4)",
     "  --dpi            độ phân giải PNG cho hình báo cáo (mặc định: 300)",
+    "  --interval       paper | cross: khoảng tin cậy dùng làm quy ước chính",
+    "                   (mặc định: paper, tức se^2 = s^2/B + c^2/n với c = Var(Y)^2)",
     "  --project-root   thư mục gốc chứa data/, results/, figures/",
     "  --energy-data    đường dẫn ENB2012_data.xlsx",
     "  --concrete-data  đường dẫn Concrete_Data.xls",
@@ -92,6 +95,7 @@ main <- function(argv = commandArgs(trailingOnly = TRUE)) {
   # models.R đọc chúng ngay tại thời điểm source.
   Sys.setenv(DVI_PROFILE = tolower(options$profile))
   Sys.setenv(DVI_REPORT_DPI = options$dpi)
+  Sys.setenv(DVI_PRIMARY_INTERVAL = tolower(options$interval))
   if (nzchar(options$project_root)) {
     Sys.setenv(DVI_PROJECT_ROOT = options$project_root)
   }
@@ -102,7 +106,10 @@ main <- function(argv = commandArgs(trailingOnly = TRUE)) {
   data_paths <- resolve_data_paths(options$energy_data, options$concrete_data)
   load_dvi_modules(file.path(root_directory, "R"))
 
-  cat("Profile:", tolower(options$profile), "| threads:", n_threads, "\n")
+  cat(
+    "Profile:", tolower(options$profile), "| threads:", n_threads,
+    "| interval:", tolower(options$interval), "\n"
+  )
   cat("Stages:", paste(options$stages, collapse = ", "), "\n")
   started <- proc.time()[[3L]]
   state <- new_pipeline_state(project_root, data_paths, options$language)

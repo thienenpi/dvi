@@ -186,7 +186,7 @@ plot_simulation_summary <- function(
       NA, xlim = c(0.6, 3.4), ylim = c(0, 1),
       xaxt = "n", xlab = "Mô hình nuisance",
       ylab = bquote("Độ bao phủ đối với" ~ psi[0]),
-      main = "Độ bao phủ t-Cross không hiệu chỉnh"
+      main = paste("Độ bao phủ", primary_interval_label())
     )
     axis(1, at = 1:3, labels = tools::toTitleCase(learners))
     grid(col = "#E2E2E2", lwd = 0.7)
@@ -246,7 +246,7 @@ plot_real_results <- function(
     estimator_order, include_method = TRUE
   )
   finite_limits <- unlist(diagnostics[c(
-    "ci_low_cross_scaled_by_var_y", "ci_high_cross_scaled_by_var_y"
+    "ci_low_scaled_by_var_y", "ci_high_scaled_by_var_y"
   )])
   finite_limits <- finite_limits[is.finite(finite_limits)]
   x_limits <- if (length(finite_limits)) {
@@ -278,8 +278,8 @@ plot_real_results <- function(
       grid(col = "#E8E8E8", lwd = 0.7)
       abline(v = 0, col = "#777777", lty = 3, lwd = 0.9)
       segments(
-        part$ci_low_cross_scaled_by_var_y, y,
-        part$ci_high_cross_scaled_by_var_y, y,
+        part$ci_low_scaled_by_var_y, y,
+        part$ci_high_scaled_by_var_y, y,
         col = colors, lwd = 2.1
       )
       points(part$estimate_scaled_by_var_y, y, pch = 16, col = colors)
@@ -297,7 +297,7 @@ plot_real_results <- function(
       side = 3, outer = TRUE, line = 1, cex = 1.08
     )
     mtext(
-      bquote("Ước lượng và khoảng t-Cross 95% không hiệu chỉnh, chuẩn hóa theo" ~ Var(Y)),
+      bquote("Ước lượng và khoảng 95%, chuẩn hóa theo" ~ Var(Y)),
       side = 1, outer = TRUE, line = 2.0, cex = 0.88
     )
     mtext(
@@ -832,7 +832,7 @@ plot_coverage_heatmap <- function(
 
     draw_matrix(
       coverage_matrix, coverage_palette, c(0, 1),
-      expression(paste("Độ bao phủ t-Cross giảm tải đối với ", psi[0]))
+      bquote("Độ bao phủ" ~ psi[0] ~ .(paste0("(", primary_interval_label(), ")")))
     )
     draw_matrix(
       difference_matrix, difference_palette, c(-1, 1),
@@ -1099,4 +1099,115 @@ plot_real_predictability <- function(
     )
   }
   save_report_plot(path, 12.2, 4.7, draw)
+}
+
+plot_interval_endpoints <- function(
+  project_root, aggregate, config, language = "R"
+) {
+  path <- file.path(
+    project_root, "figures", language,
+    paste0("interval_endpoints_", config$name, ".png")
+  )
+  examples <- 2:5
+  learners <- c("linear", "additive", "forest")
+  learner_labels <- c(
+    linear = "Linear", additive = "Additive", forest = "Forest"
+  )
+  part <- aggregate[
+    aggregate$example %in% examples & aggregate$estimator %in% ESTIMATORS,
+    , drop = FALSE
+  ]
+  offsets <- c(0.24, 0, -0.24)
+
+  draw <- function() {
+    par(
+      mfrow = c(2, 3), mar = c(4.2, 4.6, 3, 1.2), oma = c(2.4, 0, 2.8, 0),
+      family = "sans", bty = "l", las = 1
+    )
+    for (example in examples) {
+      panel <- part[part$example == example, , drop = FALSE]
+      target <- safe_mean(panel$target_psi0)
+      lows <- panel$mean_ci_low[is.finite(panel$mean_ci_low)]
+      highs <- panel$mean_ci_high[is.finite(panel$mean_ci_high)]
+      limits <- range(
+        c(
+          target,
+          safe_quantile(lows, 0.05),
+          safe_quantile(highs, 0.95),
+          target - 0.35 * abs(target),
+          target + 0.35 * abs(target)
+        ),
+        na.rm = TRUE
+      )
+      padding <- 0.06 * diff(limits)
+      plot(
+        NA, xlim = limits + c(-padding, padding),
+        ylim = c(0.5, length(ESTIMATORS) + 0.5),
+        yaxt = "n", xlab = "Giá trị tham số",
+        ylab = "", main = paste("Kịch bản mô phỏng", example)
+      )
+      grid(col = "#E2E2E2", lwd = 0.7)
+      abline(v = target, lty = 2, col = "#555555")
+      axis(
+        2, at = seq_along(ESTIMATORS),
+        labels = estimator_math_labels(rev(ESTIMATORS)),
+        tick = FALSE
+      )
+      for (index in seq_along(ESTIMATORS)) {
+        estimator <- ESTIMATORS[[index]]
+        centre <- length(ESTIMATORS) - index + 1
+        for (position in seq_along(learners)) {
+          row <- panel[
+            panel$estimator == estimator & panel$learner == learners[[position]],
+            , drop = FALSE
+          ]
+          if (!nrow(row)) next
+          low <- row$mean_ci_low[[1L]]
+          high <- row$mean_ci_high[[1L]]
+          if (!is.finite(low) || !is.finite(high)) next
+          y <- centre + offsets[[position]]
+          segments(
+            low, y, high, y,
+            col = ESTIMATOR_COLORS[[estimator]], lwd = 1.8
+          )
+          points(
+            row$mean_estimate[[1L]], y, pch = 16, cex = 0.6,
+            col = ESTIMATOR_COLORS[[estimator]]
+          )
+        }
+      }
+    }
+
+    plot.new()
+    legend(
+      "center",
+      legend = c(
+        as.expression(estimator_math_labels(ESTIMATORS)),
+        expression(psi[0] ~ "(đường đứt)")
+      ),
+      col = c(ESTIMATOR_COLORS[ESTIMATORS], "#555555"),
+      lwd = c(rep(1.8, length(ESTIMATORS)), 1),
+      lty = c(rep(1, length(ESTIMATORS)), 2),
+      bty = "n", cex = 1.05
+    )
+    legend(
+      "bottom",
+      legend = paste(
+        "Trong mỗi nhóm:", paste(learner_labels[learners], collapse = " / ")
+      ),
+      bty = "n", cex = 0.9
+    )
+    mtext(
+      paste0(
+        "Trung bình hai đầu mút khoảng ", primary_interval_label(),
+        " 95% trên ", config$repetitions, " lần lặp"
+      ),
+      outer = TRUE, line = 0.8, cex = 1.05
+    )
+    mtext(
+      "Trong mỗi nhóm, từ trên xuống: linear, additive, forest",
+      side = 1, outer = TRUE, line = 0.6, cex = 0.85
+    )
+  }
+  save_report_plot(path, 12.6, 7.4, draw)
 }

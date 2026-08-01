@@ -6,17 +6,210 @@ bài báo, ba nuisance learner, thủ tục suy luận t-Cross, hai baseline đ�
 (residual CPI, marginal PFI) và phân tích hai bộ dữ liệu thực Energy Efficiency
 và Concrete Compressive Strength.
 
+Hai bộ dữ liệu đã nằm sẵn trong `data/`, không cần tải thêm.
+
+---
+
+# Chạy trên máy cá nhân
+
+Chạy lần lượt các lệnh dưới đây từ trên xuống.
+
+## Bước 1 — Lấy mã nguồn
+
+```bash
+git clone https://github.com/thienenpi/dvi.git
+cd dvi
+```
+
+## Bước 2 — Cài R
+
+Bỏ qua bước này nếu `Rscript --version` đã chạy được. Chọn **một** cách:
+
+```bash
+# Ubuntu / Debian
+sudo apt-get update && sudo apt-get install -y r-base build-essential
+
+# hoặc conda (không cần quyền sudo)
+conda create -y -n dvi -c conda-forge r-base && conda activate dvi
+
+# hoặc macOS
+brew install r
+```
+
+## Bước 3 — Cài package R
+
+```bash
+Rscript scripts/install_packages.R
+```
+
+Script cài `jsonlite`, `readxl`, `mgcv`, `grf` và in phiên bản từng package. Thêm
+`--notebook` nếu muốn chạy notebook (`IRdisplay`, `IRkernel`).
+
+## Bước 4 — Chạy thử toàn bộ pipeline
+
+```bash
+Rscript main.R --profile smoke --threads 4
+```
+
+Vài phút. Đây là bài kiểm tra môi trường, đường dẫn dữ liệu và toàn bộ đường đi
+của pipeline; **kết quả không dùng cho báo cáo**.
+
+## Bước 5 — Chạy cấu hình giảm tải
+
+```bash
+Rscript main.R --profile reduced --threads 8
+```
+
+10 lần lặp mô phỏng chính, 10 lần lặp baseline, 30 lần lặp ablation. Đây là cấu
+hình đủ dùng cho phần lớn nội dung báo cáo.
+
+## Bước 6 — Chạy cấu hình của bài báo (tùy chọn, rất tốn thời gian)
+
+```bash
+Rscript main.R --profile paper --threads 16
+```
+
+100 lần lặp, n = 10.000, lưới tương quan 0 → 0,95. Chỉ cấu hình này mới so sánh
+trực tiếp được với Table 2 của bài báo. Nếu bị ngắt giữa chừng, chạy lại **đúng
+lệnh trên** để tiếp tục phần còn thiếu.
+
+## Bước 7 — Xem kết quả
+
+```bash
+ls results/R/    # bảng CSV
+ls figures/R/    # hình PNG 300 DPI và PDF vector
+cat README_EXPERIMENTS.md
+```
+
+---
+
+# Chạy trên cluster Slurm
+
+## Bước 1 — Đưa mã nguồn lên server
+
+```bash
+ssh <user>@<host> 'git clone https://github.com/thienenpi/dvi.git ~/dvi'
+```
+
+Hoặc đồng bộ từ máy cá nhân:
+
+```bash
+rsync -az --partial --info=progress2 \
+    --exclude 'results/' --exclude 'figures/' --exclude 'checkpoints/' --exclude 'logs/' \
+    ./ <user>@<host>:~/dvi/
+```
+
+## Bước 2 — Cài môi trường trên server (chỉ lần đầu)
+
+```bash
+ssh <user>@<host>
+cd ~/dvi
+module avail R 2>&1 | head        # xem cluster có module R tên gì
+module load R                     # hoặc: conda activate <env có r-base>
+Rscript scripts/install_packages.R
+```
+
+Nếu R nằm trong conda env chứ không phải `module`, sửa dòng `module load R`
+trong `jobs/reproduce/*.slurm` và `jobs/stages/*.slurm` thành
+`conda activate <env>`.
+
+## Bước 3 — Submit
+
+Phải `cd` vào thư mục gốc repo rồi mới `sbatch`, vì script dùng
+`$SLURM_SUBMIT_DIR` làm `--project-root`.
+
+```bash
+cd ~/dvi
+sbatch jobs/reproduce/smoke.slurm      # 4 CPU, 16G, 1h  — kiểm tra pipeline
+sbatch jobs/reproduce/reduced.slurm    # 8 CPU, 32G, 12h — cấu hình giảm tải
+sbatch jobs/reproduce/paper.slurm      # 16 CPU, 64G, 48h — cấu hình bài báo
+```
+
+Khi tường thời gian của cluster ngắn hơn thời gian chạy `paper`, tách hai giai
+đoạn:
+
+```bash
+jid=$(sbatch --parsable jobs/stages/paper-simulations.slurm)
+sbatch --dependency=afterok:$jid jobs/stages/paper-analysis.slurm
+```
+
+## Bước 4 — Theo dõi
+
+```bash
+squeue -u $USER
+tail -f logs/reduced-<JOBID>.out
+sacct -j <JOBID> --format=JobID,State,Elapsed,MaxRSS
+```
+
+Job có `--requeue` và pipeline ghi kết quả tăng dần theo tổ hợp (kịch bản, tương
+quan, lần lặp, learner), nên `sbatch` lại đúng script sau khi hết thời gian sẽ
+chạy tiếp phần còn thiếu thay vì làm lại từ đầu.
+
+## Bước 5 — Kéo kết quả về máy cá nhân
+
+```bash
+rsync -az --partial --info=progress2 \
+    <user>@<host>:~/dvi/{results,figures,logs}/ ./
+```
+
+---
+
+# Tham khảo
+
+## Tham số của `main.R`
+
+```bash
+Rscript main.R --help
+```
+
+| Tham số | Mặc định | Ý nghĩa |
+| --- | --- | --- |
+| `--profile` | `reduced` | `smoke`, `reduced` hoặc `paper` |
+| `--threads` | `4` | số luồng BLAS/OpenMP |
+| `--stages` | tất cả | danh sách stage, phân tách bằng dấu phẩy |
+| `--project-root` | tự dò | thư mục chứa `data/`, `results/`, `figures/` |
+| `--energy-data` | `data/ENB2012_data.xlsx` | đường dẫn dữ liệu Energy |
+| `--concrete-data` | `data/Concrete_Data.xls` | đường dẫn dữ liệu Concrete |
+| `--interval` | `paper` | `paper` (se² = s²/B + c²/n, c = Var(Y)²) hoặc `cross` (se² = s²/B) |
+| `--dpi` | `300` | độ phân giải PNG |
+| `--language` | `R` | nhãn thư mục đầu ra |
+
+## Chạy từng phần
+
+Các stage: `targets`, `simulations`, `baseline`, `ablation`, `real`, `report`,
+`check`. Stage `baseline` phải chạy cùng `simulations` vì bảng so sánh cần kết
+quả của mô phỏng chính.
+
+```bash
+Rscript main.R --profile paper --stages simulations,baseline
+Rscript main.R --profile paper --stages targets,ablation,real,report
+```
+
+## Notebook
+
+`src/dvi-r-reproduce.ipynb` dùng lại đúng module trong `R/` và trình bày phần
+diễn giải phương pháp. Cần kernel R:
+
+```bash
+Rscript scripts/install_packages.R --notebook
+Rscript -e 'IRkernel::installspec()'
+jupyter notebook src/dvi-r-reproduce.ipynb
+```
+
+Mở từ thư mục gốc hay từ `src/` đều được vì notebook tự dò `R/config.R`. Đổi
+profile ở cell cấu hình.
+
 ## Cấu trúc
 
 ```
-data/                 ENB2012_data.xlsx, Concrete_Data.xls
-docs/                 bài báo gốc
+data/                 ENB2012_data.xlsx (768 x 10), Concrete_Data.xls (1030 x 9)
+docs/                 bài báo gốc và yêu cầu đồ án
 R/                    module phương pháp
 main.R                điểm vào khi chạy bằng Rscript
+scripts/              cài đặt môi trường
 jobs/reproduce/       script Slurm chạy trọn một profile
 jobs/stages/          script Slurm tách giai đoạn cho profile `paper`
 src/                  notebook trình bày, dùng lại đúng module trong R/
-results/, figures/, checkpoints/, logs/    đầu ra (sinh khi chạy)
 ```
 
 | Module | Nội dung |
@@ -33,60 +226,6 @@ results/, figures/, checkpoints/, logs/    đầu ra (sinh khi chạy)
 | `R/reporting.R` | metadata môi trường, hướng dẫn thực thi, manifest đầu ra |
 | `R/pipeline.R` | các stage và hàm điều phối `run_pipeline` |
 
-## Cài đặt môi trường
-
-Yêu cầu R từ 4.2 trở lên. Repository đã kèm sẵn hai tệp dữ liệu trong `data/`
-nên không cần tải thêm.
-
-Cài R (chọn một cách):
-
-```bash
-sudo apt-get install -y r-base            # Debian/Ubuntu
-conda create -n dvi -c conda-forge r-base # conda
-brew install r                            # macOS
-```
-
-Cài package R (`jsonlite`, `readxl`, `mgcv`, `grf`; thêm `--notebook` để cài
-`IRdisplay` và `IRkernel` cho notebook):
-
-```bash
-Rscript scripts/install_packages.R
-Rscript scripts/install_packages.R --notebook
-```
-
-Kiểm tra nhanh toàn bộ pipeline (vài phút):
-
-```bash
-Rscript main.R --profile smoke --threads 4
-```
-
-## Chạy thực nghiệm
-
-```bash
-Rscript main.R --profile smoke   --threads 4     # kiểm tra nhanh toàn bộ đường đi
-Rscript main.R --profile reduced --threads 8     # cấu hình giảm tải
-Rscript main.R --profile paper   --threads 16    # cấu hình của bài báo
-Rscript main.R --help
-```
-
-Tham số: `--profile`, `--threads`, `--dpi`, `--project-root`, `--energy-data`,
-`--concrete-data`, `--stages`, `--language`.
-
-Chạy từng phần bằng `--stages` với danh sách trong
-`targets,simulations,baseline,ablation,real,report,check`; `baseline` phải chạy
-cùng `simulations`.
-
-```bash
-Rscript main.R --profile paper --stages simulations,baseline
-Rscript main.R --profile paper --stages targets,ablation,real,report
-```
-
-## Notebook
-
-`src/dvi-r-reproduce.ipynb` dùng lại đúng module trong `R/` và trình bày phần
-diễn giải phương pháp. Cần kernel R (`IRkernel`); mở từ thư mục gốc hoặc từ
-`src/` đều được vì notebook tự dò `R/config.R`. Đổi profile ở cell cấu hình.
-
 ## Đầu ra
 
 | Đường dẫn | Nội dung |
@@ -100,36 +239,14 @@ diễn giải phương pháp. Cần kernel R (`IRkernel`); mở từ thư mục 
 
 Các thư mục này được `.gitignore` bỏ qua vì tái tạo được từ mã nguồn.
 
-## Slurm
-
-```bash
-sbatch jobs/reproduce/smoke.slurm
-sbatch jobs/reproduce/reduced.slurm
-sbatch jobs/reproduce/paper.slurm
-```
-
-Job phải được nộp từ thư mục gốc của repository vì script dùng
-`$SLURM_SUBMIT_DIR` làm `--project-root`. Log ghi vào `logs/`.
-
-Mô phỏng chính lưu kết quả tăng dần theo tổ hợp (kịch bản, tương quan, lần lặp,
-learner) trong `results/R/simulation_<profile>.csv`, nên nộp lại đúng script sau
-khi hết thời gian sẽ chạy tiếp phần còn thiếu. Với cluster có tường thời gian
-ngắn, dùng `jobs/stages/paper-simulations.slurm` rồi
-`jobs/stages/paper-analysis.slurm`.
-
-## Dữ liệu
-
-`data/ENB2012_data.xlsx` (768 × 10) và `data/Concrete_Data.xls` (1030 × 9).
-Pipeline kiểm tra kích thước và ghi SHA-256 vào metadata trước khi chạy. Khi dữ
-liệu nằm nơi khác, dùng `--energy-data` và `--concrete-data`, hoặc biến môi
-trường `DVI_ENERGY_DATA_PATH` và `DVI_CONCRETE_DATA_PATH`.
-
 ## Quy ước diễn giải
 
 - Coverage với dưới 30 lần lặp chỉ mang tính mô tả; chỉ profile `paper` (100 lần
   lặp) mới so sánh trực tiếp được với Table 2 của bài báo.
-- Khoảng được báo cáo chính là t-Cross không có số hạng hiệu chỉnh
-  (`se² = s²/B`). Khoảng theo `se² = s²/B + c²/n` vẫn được tính và lưu; phần
+- Khoảng được báo cáo chính là t-Cross theo mục 3.6 của bài báo
+  (`se² = s²/B + c²/n`, `c = Var(Y)²`), nên cột `coverage` và
+  `coverage_minus_paper` so trực tiếp được với Table 2. Khoảng không hiệu chỉnh
+  vẫn được tính và lưu ở các cột `*_cross`; đổi bằng `--interval cross`. Phần
   ablation đánh giá `c = 0`, `c = Var(Y)` và `c = Var(Y)²`.
 - Marginal PFI không cùng estimand với tham số decorrelated; vị trí của nó trong
   bảng chỉ mô tả hệ quả của phép nhiễu biên.

@@ -158,7 +158,17 @@ summarize_real_diagnostics <- function(results, predictability, metadata) {
     sort = FALSE
   )
   scale_value <- metadata$response_variance
+  primary_low <- if (primary_interval_is_paper()) {
+    diagnostics$ci_low
+  } else diagnostics$ci_low_cross
+  primary_high <- if (primary_interval_is_paper()) {
+    diagnostics$ci_high
+  } else diagnostics$ci_high_cross
   diagnostics$estimate_scaled_by_var_y <- diagnostics$estimate / scale_value
+  diagnostics$ci_low_scaled_by_var_y <- primary_low / scale_value
+  diagnostics$ci_high_scaled_by_var_y <- primary_high / scale_value
+  diagnostics$ci_width_scaled_by_var_y <- (primary_high - primary_low) /
+    scale_value
   diagnostics$ci_low_cross_scaled_by_var_y <- diagnostics$ci_low_cross / scale_value
   diagnostics$ci_high_cross_scaled_by_var_y <- diagnostics$ci_high_cross / scale_value
   diagnostics$ci_width_cross_scaled_by_var_y <- diagnostics$ci_width_cross / scale_value
@@ -265,6 +275,8 @@ build_real_report_table <- function(
     learner = report$learner,
     estimator = report$estimator,
     estimate_scaled_by_var_y = report$estimate_scaled_by_var_y,
+    ci_low_scaled_by_var_y = report$ci_low_scaled_by_var_y,
+    ci_high_scaled_by_var_y = report$ci_high_scaled_by_var_y,
     ci_low_cross_scaled_by_var_y = report$ci_low_cross_scaled_by_var_y,
     ci_high_cross_scaled_by_var_y = report$ci_high_cross_scaled_by_var_y,
     predictability_r2 = report$predictability_r2,

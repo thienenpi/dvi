@@ -201,9 +201,10 @@ estimate_fold <- function(
 
   estimator_started <- proc.time()[[3L]]
   psi_l <- mean((y_test - mu_z)^2 - (y_test - mu_xz)^2)
+  # |rho(X, Z_j)| trên X gốc; với X nhiều chiều lấy giá trị lớn nhất theo thành phần.
   dependence <- vapply(seq_len(ncol(z_train)), function(j) {
-    sum(vapply(seq_len(ncol(x_train)), function(k) {
-      safe_abs_correlation(x_train[, k], z_train[, j])
+    max(vapply(seq_len(ncol(x_raw_train)), function(k) {
+      safe_abs_correlation(x_raw_train[, k], z_train[, j])
     }, numeric(1)))
   }, numeric(1))
   selected <- which(dependence <= config$psi1_threshold)

@@ -2,7 +2,7 @@
 #SBATCH --job-name=dvi-paper
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=16
+#SBATCH --cpus-per-task=12
 #SBATCH --mem=64G
 #SBATCH --time=48:00:00
 #SBATCH --requeue

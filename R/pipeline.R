@@ -222,7 +222,13 @@ stage_simulations <- function(state) {
   state$figures$coverage <- plot_coverage_heatmap(
     state$project_root, simulation$aggregate, config, language = state$language
   )
-  for (figure in c("simulation", "example1", "psi0_diagnostic", "coverage")) {
+  state$figures$interval_endpoints <- plot_interval_endpoints(
+    state$project_root, simulation$aggregate, config, language = state$language
+  )
+  for (figure in c(
+    "simulation", "example1", "psi0_diagnostic", "coverage",
+    "interval_endpoints"
+  )) {
     display_figure(state$figures[[figure]])
   }
   state
@@ -488,7 +494,7 @@ stage_compliance <- function(state) {
   ) %in% names(state$main_coverage))
   required_figures <- c(
     "simulation", "example1", "psi0_diagnostic", "coverage",
-    "baseline", "ablation"
+    "interval_endpoints", "baseline", "ablation"
   )
   has_figures <- all(required_figures %in% names(state$figures)) &&
     all(file.exists(unlist(state$figures[required_figures])))

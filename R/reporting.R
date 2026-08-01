@@ -16,8 +16,11 @@ write_environment_metadata <- function(
         collapse = " | "
       ),
       report_dpi = REPORT_DPI,
-      primary_interval = "uncorrected_t_cross",
+      primary_interval = if (primary_interval_is_paper()) {
+        "t_cross_paper_c_equals_variance_y_squared"
+      } else "t_cross_uncorrected",
       sensitivity_intervals = c(
+        "t_cross_uncorrected",
         "c_equals_variance_y",
         "c_equals_variance_y_squared"
       ),
@@ -78,8 +81,9 @@ write_experiment_readme <- function(project_root, config, data_paths) {
     "",
     "## Quy ước suy luận",
     "",
-    "- Hình mô phỏng chính và dữ liệu thực sử dụng khoảng t-Cross không hiệu chỉnh.",
-    "- Khoảng với `c = Var(Y)` và `c = Var(Y)^2` được giữ lại cho phân tích độ nhạy.",
+    paste0("- Khoảng trình bày chính: ", primary_interval_label(), "."),
+    "- Mặc định là khoảng của mục 3.6: `se^2 = s^2/B + c^2/n` với `c = Var(Y)^2`; đây là khoảng so trực tiếp với Table 2.",
+    "- Khoảng không hiệu chỉnh và khoảng với `c = Var(Y)` được giữ lại cho phân tích độ nhạy.",
     "- Độ bao phủ phải được đọc cùng khoảng nhị thức chính xác và độ rộng khoảng.",
     "",
     "## Tính toàn vẹn dữ liệu",
