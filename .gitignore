@@ -1,0 +1,17 @@
+# Đầu ra sinh khi chạy; tái tạo được bằng main.R nên không đưa vào repository.
+results/
+figures/
+checkpoints/
+logs/
+README_EXPERIMENTS.md
+
+# R
+.Rhistory
+.RData
+.Rproj.user/
+
+# Notebook
+.ipynb_checkpoints/
+
+# Hệ điều hành
+.DS_Store
