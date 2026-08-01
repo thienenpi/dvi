@@ -19,6 +19,7 @@ exec > "logs/paper-${SLURM_JOB_ID}.out" 2>&1
 module load R 2>/dev/null || true
 source ~/.bashrc
 conda activate dvi
+Rscript scripts/install_packages.R
 
 echo "Job $SLURM_JOB_ID on $(hostname); started $(date)"
 Rscript -e 'cat(R.version.string, "\n")'
