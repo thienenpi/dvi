@@ -21,19 +21,21 @@ git clone https://github.com/thienenpi/dvi.git
 cd dvi
 ```
 
-## Bước 2 — Cài R
+## Bước 2 — Tạo môi trường R
 
-Bỏ qua bước này nếu `Rscript --version` đã chạy được. Chọn **một** cách:
+Dự án dùng conda env tên `dvi`; các script Slurm cũng `conda activate dvi`.
+`grf`, `readxl` và `jsonlite` phải biên dịch từ nguồn nên env cần cả compiler.
 
 ```bash
-# Ubuntu / Debian
-sudo apt-get update && sudo apt-get install -y r-base build-essential
+conda create -y -n dvi -c conda-forge r-base c-compiler cxx-compiler
+conda activate dvi
+```
 
-# hoặc conda (không cần quyền sudo)
-conda create -y -n dvi -c conda-forge r-base && conda activate dvi
+Không dùng conda thì cài R hệ thống cũng được:
 
-# hoặc macOS
-brew install r
+```bash
+sudo apt-get update && sudo apt-get install -y r-base build-essential   # Ubuntu / Debian
+brew install r                                                          # macOS
 ```
 
 ## Bước 3 — Cài package R
@@ -42,8 +44,22 @@ brew install r
 Rscript scripts/install_packages.R
 ```
 
-Script cài `jsonlite`, `readxl`, `mgcv`, `grf` và in phiên bản từng package. Thêm
-`--notebook` nếu muốn chạy notebook (`IRdisplay`, `IRkernel`).
+Script cài `jsonlite`, `readxl`, `mgcv`, `grf` và in phiên bản từng package; chạy
+lại nhiều lần vô hại vì nó bỏ qua package đã có. Thêm `--notebook` nếu muốn chạy
+notebook (`IRdisplay`, `IRkernel`).
+
+Nếu mạng chặn CRAN, cài thẳng bằng conda:
+
+```bash
+conda install -y -n dvi -c conda-forge r-jsonlite r-readxl r-mgcv r-grf
+```
+
+Trong mạng có proxy chặn SSL (chứng chỉ tự ký trong chuỗi), trỏ conda sang CA của
+hệ thống trước khi cài:
+
+```bash
+conda config --set ssl_verify /etc/ssl/certs/ca-certificates.crt
+```
 
 ## Bước 4 — Chạy thử toàn bộ pipeline
 
@@ -99,19 +115,20 @@ rsync -az --partial --info=progress2 \
     ./ <user>@<host>:~/dvi/
 ```
 
-## Bước 2 — Cài môi trường trên server (chỉ lần đầu)
+## Bước 2 — Tạo môi trường trên server (chỉ lần đầu)
 
 ```bash
 ssh <user>@<host>
 cd ~/dvi
-module avail R 2>&1 | head        # xem cluster có module R tên gì
-module load R                     # hoặc: conda activate <env có r-base>
+conda create -y -n dvi -c conda-forge r-base c-compiler cxx-compiler
+conda activate dvi
 Rscript scripts/install_packages.R
 ```
 
-Nếu R nằm trong conda env chứ không phải `module`, sửa dòng `module load R`
-trong `jobs/reproduce/*.slurm` và `jobs/stages/*.slurm` thành
-`conda activate <env>`.
+Các script Slurm đều `conda activate dvi` rồi chạy `scripts/install_packages.R`
+trước khi vào `main.R`, nên nếu env đã tồn tại thì bước cài này chỉ là kiểm tra.
+Dùng tên env khác thì sửa dòng `conda activate dvi` trong `jobs/reproduce/*.slurm`
+và `jobs/stages/*.slurm`.
 
 ## Bước 3 — Submit
 
@@ -120,9 +137,9 @@ Phải `cd` vào thư mục gốc repo rồi mới `sbatch`, vì script dùng
 
 ```bash
 cd ~/dvi
-sbatch jobs/reproduce/smoke.slurm      # 4 CPU, 16G, 1h  — kiểm tra pipeline
-sbatch jobs/reproduce/reduced.slurm    # 8 CPU, 32G, 12h — cấu hình giảm tải
-sbatch jobs/reproduce/paper.slurm      # 16 CPU, 64G, 48h — cấu hình bài báo
+sbatch jobs/reproduce/smoke.slurm      # 4 CPU, 16G, 1h   — kiểm tra pipeline
+sbatch jobs/reproduce/reduced.slurm    # 8 CPU, 32G, 12h  — cấu hình giảm tải
+sbatch jobs/reproduce/paper.slurm      # 12 CPU, 64G, 48h — cấu hình bài báo
 ```
 
 Khi tường thời gian của cluster ngắn hơn thời gian chạy `paper`, tách hai giai
@@ -191,6 +208,7 @@ Rscript main.R --profile paper --stages targets,ablation,real,report
 diễn giải phương pháp. Cần kernel R:
 
 ```bash
+conda activate dvi
 Rscript scripts/install_packages.R --notebook
 Rscript -e 'IRkernel::installspec()'
 jupyter notebook src/dvi-r-reproduce.ipynb

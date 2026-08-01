@@ -17,8 +17,9 @@ cd "$SLURM_SUBMIT_DIR" || exit 1
 mkdir -p logs
 exec > "logs/paper-sim-${SLURM_JOB_ID}.out" 2>&1
 module purge 2>/dev/null || true
-module load R 2>/dev/null || true
 source ~/.bashrc
+conda activate dvi
+Rscript scripts/install_packages.R
 
 echo "Job $SLURM_JOB_ID on $(hostname); started $(date)"
 
